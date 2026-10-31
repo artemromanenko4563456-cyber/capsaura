@@ -47,14 +47,13 @@ public class CapsAuraClient implements ClientModInitializer {
 	private static void onTick(Minecraft mc) {
 		while (toggleKey.consumeClick()) {
 			enabled = !enabled;
-			if (mc.gui != null) {
-				mc.gui.setOverlayMessage(
-						Component.literal("Kill Aura: " + (enabled ? "ON" : "OFF")), false);
+			if (mc.player != null) {
+				mc.player.sendSystemMessage(
+						Component.literal("Kill Aura: " + (enabled ? "ON" : "OFF")));
 			}
 		}
 
-		if (!enabled || mc.player == null || mc.level == null
-				|| mc.gameMode == null || mc.screen != null) {
+		if (!enabled || mc.player == null || mc.level == null || mc.gameMode == null) {
 			return;
 		}
 
