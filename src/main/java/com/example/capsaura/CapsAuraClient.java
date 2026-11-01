@@ -57,6 +57,7 @@ public class CapsAuraClient implements ClientModInitializer {
 				"key.capsaura.toggle", InputConstants.Type.KEYSYM, TOGGLE_KEY, category));
 		friendKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.capsaura.friend", InputConstants.Type.KEYSYM, FRIEND_KEY, category));
+				BridgeAssist.init(category);
 
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
