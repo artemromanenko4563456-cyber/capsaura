@@ -61,6 +61,7 @@ static boolean AIM = true;              // наводить камеру
 BridgeAssist.init(category);
 CapsAuraScreen.init(category);   // <-- вот эта
 XRay.init();
+		MineBot.init();
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
 	}
