@@ -56,7 +56,6 @@ public final class XRay {
         Minecraft mc = Minecraft.getInstance();
         setSmartCull(mc, !enabled);
         if (mc.levelRenderer != null) {
-            mc.levelRenderer.allChanged();
         }
     }
 
