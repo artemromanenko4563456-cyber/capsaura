@@ -213,13 +213,17 @@ public class CapsAuraScreen extends Screen {
         return contentY + i * ROW_H;
     }
 
-    private void buildCombat() {
+       private void buildCombat() {
         int half = (contentW - GAP) / 2;
-        addToggle(contentX, row(0), contentW, "Kill Aura",
-                () -> CapsAuraClient.enabled, v -> CapsAuraClient.enabled = v);
+        addToggle(contentX, row(0), half, "Aura 1.8.9",
+                () -> CapsAuraClient.enabled,
+                v -> { CapsAuraClient.enabled = v; if (v) CritAura.enabled = false; });
+        addToggle(contentX + half + GAP, row(0), half, "Aura Crits",
+                () -> CritAura.enabled,
+                v -> { CritAura.enabled = v; if (v) CapsAuraClient.enabled = false; });
         addSlider(contentX, row(1), contentW, "Range", RANGE_MIN, RANGE_MAX, 1,
                 CapsAuraClient.RANGE, v -> CapsAuraClient.RANGE = v);
-        addSlider(contentX, row(2), contentW, "Attacks/sec", APS_MIN, APS_MAX, 0,
+        addSlider(contentX, row(2), contentW, "Attacks/sec (1.8.9)", APS_MIN, APS_MAX, 0,
                 CapsAuraClient.ATTACKS_PER_SECOND, v -> CapsAuraClient.ATTACKS_PER_SECOND = (int) Math.round(v));
         addToggle(contentX, row(3), half, "Players",
                 () -> CapsAuraClient.ATTACK_PLAYERS, v -> CapsAuraClient.ATTACK_PLAYERS = v);
