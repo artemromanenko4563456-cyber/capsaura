@@ -46,7 +46,7 @@ public class CapsAuraClient implements ClientModInitializer {
 	private static KeyMapping friendKey;
 	private static boolean enabled = false;
 	private static int attackCharge = 0;
-	private static final Set<String> friends = new TreeSet<>();
+	static final Set<String> friends = new TreeSet<>();
 
 	@Override
 	public void onInitializeClient() {
