@@ -37,14 +37,13 @@ public class CapsAuraScreen extends Screen {
         ClientTickEvents.END_CLIENT_TICK.register(CapsAuraScreen::onTick);
     }
 
-    private static void onTick(Minecraft mc) {
-        while (openKey.consumeClick()) {
-            if (mc.screen == null) {
-                // У 26.1 цей метод називається setScreen(...)
-                mc.setScreenAndShow(new CapsAuraScreen());
-            }
+  private static void onTick(Minecraft mc) {
+    while (openKey.consumeClick()) {
+        if (mc.player != null) {
+            mc.setScreenAndShow(new CapsAuraScreen());
         }
     }
+}
 
     @Override
     protected void init() {
