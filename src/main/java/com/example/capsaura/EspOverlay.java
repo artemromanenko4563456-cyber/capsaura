@@ -33,8 +33,8 @@ public final class EspOverlay {
 
 	private static KeyMapping espKey;
 	private static KeyMapping tracerKey;
-	private static boolean espOn = false;
-	private static boolean tracersOn = false;
+	static boolean espOn = false;
+	static boolean tracersOn = false;
 
 	// Базис камеры и параметры экрана, считаются один раз за кадр
 	private static double fx, fy, fz, rx, rz, ux, uy, uz, tanHalf, aspect, screenW, screenH;
