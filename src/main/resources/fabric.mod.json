@@ -9,6 +9,9 @@
 	"environment": "client",
 	"entrypoints": {
 		"client": ["com.example.capsaura.CapsAuraClient"]
+		"environment": "client",
+"mixins": ["capsaura.mixins.json"],
+"entrypoints": {
 	},
 	"depends": {
 		"fabricloader": ">=0.19.3",
