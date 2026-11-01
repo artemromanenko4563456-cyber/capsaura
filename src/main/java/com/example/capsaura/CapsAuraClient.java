@@ -60,7 +60,7 @@ static boolean AIM = true;              // наводить камеру
 			EspOverlay.init(category);
 BridgeAssist.init(category);
 CapsAuraScreen.init(category);   // <-- вот эта
-
+XRay.init();
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
 	}
