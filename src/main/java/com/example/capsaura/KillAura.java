@@ -19,39 +19,25 @@ import org.lwjgl.glfw.GLFW;
 import java.util.Locale;
 
 /**
- * Kill Aura для Minecraft 26.2 (Fabric, официальные названия Mojang).
+ * "Aura 1.9+": PvP для новых версий (с перезарядкой оружия).
  *
- * Бьёт ближайшую подходящую цель в радиусе RANGE, учитывая перезарядку оружия
- * и ограничение на количество ударов в секунду.
+ * Старая "Aura 1.8.9" бьёт N раз в секунду, не глядя на перезарядку.
+ * Эта бьёт только когда оружие заряжено (на 1.9+ иначе урон режется).
  *
- * Подключение: в CapsAuraClient.onInitializeClient() рядом со строкой
- * CritAura.init(...) добавьте такую же строку: KillAura.init(...).
+ * Настройки (Range, Players, Hostile, Passive, Aim) общие с меню CapsAura:
+ * берутся из CapsAuraClient, поэтому отдельных ползунков не нужно.
  */
 public final class KillAura {
 
     /** Клавиша включения (по умолчанию K). */
     public static final int TOGGLE_KEY = GLFW.GLFW_KEY_K;
 
-    // ---- настройки ----------------------------------------------------
-
-    /** Радиус атаки в блоках. */
-    public static double RANGE = 3.5;
-    /** Максимум ударов в секунду. */
-    public static int MAX_CPS = 10;
     /** Минимальная зарядка оружия (0..1), при которой разрешён удар. */
     public static float MIN_CHARGE = 0.9F;
-    public static boolean ATTACK_PLAYERS = false;
-    public static boolean ATTACK_HOSTILE = true;
-    public static boolean ATTACK_PASSIVE = false;
-    /** Поворачивать камеру на цель перед ударом. */
-    public static boolean AIM = true;
-
-    // ---- состояние ----------------------------------------------------
 
     public static boolean enabled = false;
 
     private static KeyMapping toggleKey;
-    private static int cooldownTicks = 0;
 
     private KillAura() {
     }
@@ -62,13 +48,26 @@ public final class KillAura {
         ClientTickEvents.END_CLIENT_TICK.register(KillAura::onTick);
     }
 
+    /** Включает/выключает ауру. При включении гасит остальные ауры, чтобы не били вдвоём. */
+    public static void setEnabled(boolean value) {
+        enabled = value;
+        if (value) {
+            CapsAuraClient.enabled = false;
+            CritAura.enabled = false;
+        }
+    }
+
     // ---- логика -------------------------------------------------------
 
     private static void onTick(Minecraft mc) {
         while (toggleKey.consumeClick()) {
-            enabled = !enabled;
-            cooldownTicks = 0;
-            say(mc, "Kill Aura: " + (enabled ? "ON" : "OFF"));
+            setEnabled(!enabled);
+            say(mc, "Aura 1.9+: " + (enabled ? "ON" : "OFF"));
+        }
+
+        // если включили другую ауру (через меню или клавишу), эта выключается
+        if (enabled && (CapsAuraClient.enabled || CritAura.enabled)) {
+            enabled = false;
         }
 
         LocalPlayer player = mc.player;
@@ -76,31 +75,26 @@ public final class KillAura {
             return;
         }
 
-        if (cooldownTicks > 0) {
-            cooldownTicks--;
-        }
-
         LivingEntity target = findTarget(mc, player);
         if (target == null) {
             return;
         }
 
-        if (AIM) {
+        if (CapsAuraClient.AIM) {
             aimAt(player, target);
         }
 
-        if (cooldownTicks > 0 || player.getAttackStrengthScale(0.5F) < MIN_CHARGE) {
+        if (player.getAttackStrengthScale(0.5F) < MIN_CHARGE) {
             return;
         }
 
         mc.gameMode.attack(player, target);
         player.swing(InteractionHand.MAIN_HAND);
-        cooldownTicks = Math.max(1, 20 / Math.max(1, MAX_CPS));
     }
 
     private static LivingEntity findTarget(Minecraft mc, LocalPlayer player) {
         LivingEntity best = null;
-        double bestDist = RANGE * RANGE;
+        double bestDist = CapsAuraClient.RANGE * CapsAuraClient.RANGE;
 
         for (Entity e : mc.level.entitiesForRendering()) {
             if (!(e instanceof LivingEntity living) || !isValidTarget(player, living)) {
@@ -120,13 +114,13 @@ public final class KillAura {
             return false;
         }
         if (e instanceof Player other) {
-            if (!ATTACK_PLAYERS) {
+            if (!CapsAuraClient.ATTACK_PLAYERS) {
                 return false;
             }
             String name = other.getName().getString().toLowerCase(Locale.ROOT);
             return !CapsAuraClient.friends.contains(name);
         }
-        return e instanceof Enemy ? ATTACK_HOSTILE : ATTACK_PASSIVE;
+        return e instanceof Enemy ? CapsAuraClient.ATTACK_HOSTILE : CapsAuraClient.ATTACK_PASSIVE;
     }
 
     private static void aimAt(LocalPlayer player, LivingEntity target) {
