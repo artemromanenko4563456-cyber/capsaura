@@ -104,12 +104,7 @@ XRay.init();
 		while (toggleKey.consumeClick()) {
 			enabled = !enabled;
 			attackCharge = 0;
-						enabled = !enabled;
-			attackCharge = 0;
 			if (enabled) CritAura.enabled = false;
-			if (enabled) {
-				loadFriends();
-			}
 			if (enabled) {
 				loadFriends();
 			}
