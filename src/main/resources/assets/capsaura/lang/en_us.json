@@ -4,5 +4,6 @@
 	"key.capsaura.esp": "Toggle ESP (boxes)",
 	"key.capsaura.tracers": "Toggle Tracers",
 	"key.capsaura.friend": "Add/Remove Friend",
-	"key.capsaura.bridge": "Toggle Bridge"
+	"key.capsaura.bridge": "Toggle Bridge",
+	"key.capsaura.menu": "Open Menu"
 }
