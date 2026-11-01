@@ -63,7 +63,7 @@ CapsAuraScreen.init(category);   // <-- вот эта
 XRay.init();
 		MineBot.init();
 		   CritAura.init(category);
-		KillAura.init(category)
+		KillAura.init(category);
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
 	}
