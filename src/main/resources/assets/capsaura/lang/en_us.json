@@ -1,4 +1,6 @@
 {
 	"key.capsaura.toggle": "Toggle Kill Aura",
 	"key.category.capsaura.main": "CapsAura"
+	"key.capsaura.esp": "Toggle ESP (boxes)",
+"key.capsaura.tracers": "Toggle Tracers",
 }
