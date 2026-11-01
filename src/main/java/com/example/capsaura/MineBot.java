@@ -5,27 +5,35 @@ import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-/** Простой бот-шахтёр: копает прямой туннель к ближайшей нужной руде. Команды: .mine <руда>, .stop */
+/** Бот-шахтёр: роет туннель 2 блока высотой к ближайшей нужной руде. Команды: .mine <руда>, .stop */
 public final class MineBot {
 
     // ======== НАСТРОЙКИ ========
     private static final int SEARCH_RADIUS = 24;          // радиус поиска руды
     private static final float MIN_HEALTH = 6.0f;         // ниже этого здоровья (3 сердца) бот останавливается
     private static final int STUCK_LIMIT_TICKS = 20 * 60; // 60 секунд на одну цель
+    private static final double MINE_DISTANCE = 2.6;      // с такого расстояния ломаем саму руду
     // ===========================
 
     private static boolean active = false;
     private static boolean keysHeld = false;
     private static String filter = "";
     private static BlockPos target = null;
+    private static BlockPos collectPos = null;
+    private static int collectTicks = 0;
     private static int stuckTicks = 0;
 
     private MineBot() {}
@@ -55,6 +63,7 @@ public final class MineBot {
             }
             filter = arg;
             target = null;
+            collectPos = null;
             stuckTicks = 0;
             active = true;
             say(mc, "Копаю: " + arg + " (.stop - остановить)");
@@ -82,8 +91,30 @@ public final class MineBot {
             return;
         }
 
-        // Цель добыта или ещё не выбрана: ищем ближайшую руду
-        if (target == null || !matches(mc.level.getBlockState(target).getBlock())) {
+        // 1. Подбираем то, что выпало из добытой руды
+        if (collectPos != null) {
+            Vec3 c = Vec3.atCenterOf(collectPos);
+            if (p.position().distanceTo(c) < 1.0 || ++collectTicks > 30) {
+                collectPos = null;
+                collectTicks = 0;
+                setKeys(mc, false, false);
+            } else {
+                lookAt(p, c);
+                setKeys(mc, true, false);
+                return;
+            }
+        }
+
+        // 2. Выбираем цель
+        if (target != null && !matches(mc.level.getBlockState(target).getBlock())) {
+            // руда добыта: идём в её клетку за предметом
+            collectPos = target;
+            collectTicks = 0;
+            target = null;
+            stuckTicks = 0;
+            return;
+        }
+        if (target == null) {
             target = findNearest(mc, p);
             stuckTicks = 0;
             if (target == null) {
@@ -96,22 +127,85 @@ public final class MineBot {
             return;
         }
 
-        // Наводим камеру на руду
-        Vec3 eye = p.getEyePosition();
-        Vec3 to = Vec3.atCenterOf(target);
-        double dx = to.x - eye.x;
-        double dy = to.y - eye.y;
-        double dz = to.z - eye.z;
-        double flat = Math.sqrt(dx * dx + dz * dz);
-        p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        p.setXRot((float) (-Math.toDegrees(Math.atan2(dy, flat))));
+        // 3. Рядом с рудой - ломаем её, иначе роем туннель
+        Vec3 center = Vec3.atCenterOf(target);
+        if (p.getEyePosition().distanceTo(center) <= MINE_DISTANCE) {
+            lookAt(p, center);
+            setKeys(mc, false, false);
+            dig(mc, p, target);
+        } else {
+            tunnel(mc, p);
+        }
+    }
 
-        // Копаем то, что перед нами, и идём вперёд, пока руда не окажется рядом
-        double dist = eye.distanceTo(to);
-        mc.options.keyAttack.setDown(true);
-        mc.options.keyUp.setDown(dist > 2.0);
-        mc.options.keyJump.setDown(p.horizontalCollision && to.y > p.getY() + 0.5);
-        keysHeld = true;
+    /** Прокладывает проход шириной в 1 блок и высотой в 2 в сторону цели. */
+    private static void tunnel(Minecraft mc, LocalPlayer p) {
+        BlockPos feet = p.blockPosition();
+        int dx = target.getX() - feet.getX();
+        int dy = target.getY() - feet.getY();
+        int dz = target.getZ() - feet.getZ();
+
+        Direction dir;
+        if (Math.abs(dx) >= Math.abs(dz) && dx != 0) {
+            dir = dx > 0 ? Direction.EAST : Direction.WEST;
+        } else if (dz != 0) {
+            dir = dz > 0 ? Direction.SOUTH : Direction.NORTH;
+        } else {
+            dir = p.getDirection();
+        }
+
+        int horizontal = Math.max(Math.abs(dx), Math.abs(dz));
+        boolean up = dy >= 1 && Math.abs(dy) >= horizontal;
+        boolean down = dy <= -1 && Math.abs(dy) >= horizontal;
+
+        BlockPos front = feet.relative(dir);
+        List<BlockPos> clear = new ArrayList<>();
+        if (up) {
+            // ступенька вверх: освобождаем место над головой и клетки на уровень выше впереди
+            clear.add(feet.above(2));
+            clear.add(front.above(1));
+            clear.add(front.above(2));
+        } else if (down) {
+            // ступенька вниз
+            clear.add(front.above());
+            clear.add(front);
+            clear.add(front.below());
+        } else {
+            clear.add(front.above());
+            clear.add(front);
+        }
+
+        for (BlockPos pos : clear) {
+            if (!passable(mc, pos)) {
+                lookAt(p, Vec3.atCenterOf(pos));
+                setKeys(mc, false, false);
+                dig(mc, p, pos);
+                return;
+            }
+        }
+
+        // Путь свободен: идём вперёд (и прыгаем, если поднимаемся)
+        Vec3 f = Vec3.atCenterOf(front);
+        lookHorizontal(p, f);
+        setKeys(mc, true, up);
+    }
+
+    private static void dig(Minecraft mc, LocalPlayer p, BlockPos pos) {
+        BlockState state = mc.level.getBlockState(pos);
+        if (state.getDestroySpeed(mc.level, pos) < 0) {
+            stop(mc, "Бот остановлен: неразрушимый блок на пути");
+            return;
+        }
+        Vec3 eye = p.getEyePosition();
+        Vec3 c = Vec3.atCenterOf(pos);
+        Direction face = Direction.getApproximateNearest(eye.x - c.x, eye.y - c.y, eye.z - c.z);
+        mc.gameMode.continueDestroyBlock(pos, face);
+        p.swing(InteractionHand.MAIN_HAND);
+    }
+
+    private static boolean passable(Minecraft mc, BlockPos pos) {
+        BlockState state = mc.level.getBlockState(pos);
+        return state.getCollisionShape(mc.level, pos).isEmpty();
     }
 
     private static boolean matches(Block block) {
@@ -162,11 +256,36 @@ public final class MineBot {
         return false;
     }
 
+    // ---------- вспомогательное ----------
+
+    private static void lookAt(LocalPlayer p, Vec3 point) {
+        Vec3 eye = p.getEyePosition();
+        double dx = point.x - eye.x;
+        double dy = point.y - eye.y;
+        double dz = point.z - eye.z;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+        p.setXRot((float) (-Math.toDegrees(Math.atan2(dy, flat))));
+    }
+
+    private static void lookHorizontal(LocalPlayer p, Vec3 point) {
+        double dx = point.x - p.getX();
+        double dz = point.z - p.getZ();
+        p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+        p.setXRot(0.0f);
+    }
+
+    private static void setKeys(Minecraft mc, boolean forward, boolean jump) {
+        mc.options.keyUp.setDown(forward);
+        mc.options.keyJump.setDown(jump);
+        keysHeld = true;
+    }
+
     private static void stop(Minecraft mc, String reason) {
         active = false;
         target = null;
+        collectPos = null;
         if (keysHeld && mc.options != null) {
-            mc.options.keyAttack.setDown(false);
             mc.options.keyUp.setDown(false);
             mc.options.keyJump.setDown(false);
         }
