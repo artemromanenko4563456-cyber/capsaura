@@ -292,11 +292,15 @@ public class CapsAuraScreen extends Screen {
     // ---------------------------------------------------------- віджети
 
     /** Невидима кнопка принимает клик, а вид (ползунок-переключатель) рисуется поверх неё. */
-    private void addToggle(int x, int y, int w, String label, BooleanSupplier getter, Consumer<Boolean> setter) {
-        this.addRenderableWidget(Button.builder(Component.empty(), b -> setter.accept(!getter.getAsBoolean()))
+       private void addToggle(int x, int y, int w, String label, BooleanSupplier getter, Consumer<Boolean> setter) {
+        this.addRenderableWidget(Button.builder(toggleText(label, getter.getAsBoolean()), b -> {
+                    boolean now = !getter.getAsBoolean();
+                    setter.accept(now);
+                    this.clearWidgets();
+                    this.init();
+                })
                 .bounds(x, y, w, BTN_H)
                 .build());
-        switches.add(new SwitchView(x, y, w, label, getter));
     }
 
     private void addSlider(int x, int y, int w, String label, double min, double max, int decimals,
