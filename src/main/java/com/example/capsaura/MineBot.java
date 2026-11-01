@@ -26,6 +26,7 @@ public final class MineBot {
     private static final float MIN_HEALTH = 6.0f;         // ниже этого здоровья (3 сердца) бот останавливается
     private static final int STUCK_LIMIT_TICKS = 20 * 60; // 60 секунд на одну цель
     private static final double MINE_DISTANCE = 2.6;      // с такого расстояния ломаем саму руду
+    private static final float ROTATION_SPEED = 4.0f;     // градусов за тик (меньше = камера медленнее)
     // ===========================
 
     private static boolean active = false;
@@ -99,8 +100,8 @@ public final class MineBot {
                 collectTicks = 0;
                 setKeys(mc, false, false);
             } else {
-                lookAt(p, c);
-                setKeys(mc, true, false);
+                boolean aimed = lookAt(p, c);
+                setKeys(mc, aimed, false);
                 return;
             }
         }
@@ -184,10 +185,9 @@ public final class MineBot {
             }
         }
 
-        // Путь свободен: идём вперёд (и прыгаем, если поднимаемся)
-        Vec3 f = Vec3.atCenterOf(front);
-        lookHorizontal(p, f);
-        setKeys(mc, true, up);
+        // Путь свободен: поворачиваемся и идём вперёд (прыгаем, если поднимаемся)
+        boolean aimed = lookHorizontal(p, Vec3.atCenterOf(front));
+        setKeys(mc, aimed, up && aimed);
     }
 
     private static void dig(Minecraft mc, LocalPlayer p, BlockPos pos) {
@@ -256,24 +256,45 @@ public final class MineBot {
         return false;
     }
 
-    // ---------- вспомогательное ----------
+    // ---------- плавная камера ----------
 
-    private static void lookAt(LocalPlayer p, Vec3 point) {
+    /** Плавно поворачивает камеру к точке. Возвращает true, когда уже смотрим примерно туда. */
+    private static boolean lookAt(LocalPlayer p, Vec3 point) {
         Vec3 eye = p.getEyePosition();
         double dx = point.x - eye.x;
         double dy = point.y - eye.y;
         double dz = point.z - eye.z;
         double flat = Math.sqrt(dx * dx + dz * dz);
-        p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        p.setXRot((float) (-Math.toDegrees(Math.atan2(dy, flat))));
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+        float pitch = (float) (-Math.toDegrees(Math.atan2(dy, flat)));
+        return rotateToward(p, yaw, pitch);
     }
 
-    private static void lookHorizontal(LocalPlayer p, Vec3 point) {
+    private static boolean lookHorizontal(LocalPlayer p, Vec3 point) {
         double dx = point.x - p.getX();
         double dz = point.z - p.getZ();
-        p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        p.setXRot(0.0f);
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+        return rotateToward(p, yaw, 0.0f);
     }
+
+    private static boolean rotateToward(LocalPlayer p, float targetYaw, float targetPitch) {
+        float dYaw = wrap(targetYaw - p.getYRot());
+        float dPitch = targetPitch - p.getXRot();
+        float stepYaw = Math.max(-ROTATION_SPEED, Math.min(ROTATION_SPEED, dYaw));
+        float stepPitch = Math.max(-ROTATION_SPEED, Math.min(ROTATION_SPEED, dPitch));
+        p.setYRot(p.getYRot() + stepYaw);
+        p.setXRot(p.getXRot() + stepPitch);
+        return Math.abs(dYaw) < 12.0f;
+    }
+
+    private static float wrap(float angle) {
+        float a = angle % 360.0f;
+        if (a >= 180.0f) a -= 360.0f;
+        if (a < -180.0f) a += 360.0f;
+        return a;
+    }
+
+    // ---------- вспомогательное ----------
 
     private static void setKeys(Minecraft mc, boolean forward, boolean jump) {
         mc.options.keyUp.setDown(forward);
