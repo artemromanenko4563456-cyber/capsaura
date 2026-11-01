@@ -24,11 +24,11 @@ public final class EspOverlay {
 	// ======== НАСТРОЙКИ ========
 	private static final int ESP_KEY = GLFW.GLFW_KEY_H;      // рамки и надписи
 	private static final int TRACER_KEY = GLFW.GLFW_KEY_J;   // линии у прицела
-	private static final double MAX_DISTANCE = 128.0;        // дальше этого игроки не показываются
+	static double MAX_DISTANCE = 128.0;        // дальше этого игроки не показываются
 	private static final int TRACER_START = 14;              // отступ линии от центра прицела, пиксели
 	private static final int TRACER_LENGTH = 30;             // длина линии, пиксели (поставьте 400, чтобы тянулись до цели)
-	private static final int COLOR_ENEMY = 0xFFFF5555;
-	private static final int COLOR_FRIEND = 0xFF55FF55;
+	static int COLOR_ENEMY = 0xFFFF5555;
+	static int COLOR_FRIEND = 0xFF55FF55;
 	// ===========================
 
 	private static KeyMapping espKey;
