@@ -34,8 +34,8 @@ public class CapsAuraClient implements ClientModInitializer {
 	// Клавиши привязаны к физическому положению: GLFW_KEY_B = клавиша «И» на русской раскладке
 	private static final int TOGGLE_KEY = GLFW.GLFW_KEY_B;          // включение ауры
 	private static final int FRIEND_KEY = GLFW.GLFW_KEY_KP_ENTER;   // друг: добавить/убрать (Num Enter)
-	private static final double RANGE = 4.0;                        // радиус атаки в блоках
-	private static final int ATTACKS_PER_SECOND = 7;                // ударов в секунду (от 1 до 20)
+	static double RANGE = 4.0;                        // радиус атаки в блоках
+	static int ATTACKS_PER_SECOND = 7;                // ударов в секунду (от 1 до 20)
 	static boolean ATTACK_PLAYERS = true;   // бить игроков
 static boolean ATTACK_HOSTILE = true;   // бить враждебных мобов
 static boolean ATTACK_PASSIVE = false;  // бить животных и жителей
