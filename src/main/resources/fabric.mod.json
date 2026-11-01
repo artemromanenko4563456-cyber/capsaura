@@ -1,17 +1,15 @@
 {
 	"schemaVersion": 1,
 	"id": "capsaura",
-	"version": "${version}",
+	"version": "1.0.0",
 	"name": "CapsAura",
 	"description": "Kill aura, toggled with Caps Lock. Singleplayer / own server use only.",
 	"authors": ["you"],
 	"license": "MIT",
 	"environment": "client",
+	"mixins": ["capsaura.mixins.json"],
 	"entrypoints": {
 		"client": ["com.example.capsaura.CapsAuraClient"]
-		"environment": "client",
-"mixins": ["capsaura.mixins.json"],
-"entrypoints": {
 	},
 	"depends": {
 		"fabricloader": ">=0.19.3",
