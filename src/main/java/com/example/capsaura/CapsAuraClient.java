@@ -62,6 +62,7 @@ BridgeAssist.init(category);
 CapsAuraScreen.init(category);   // <-- вот эта
 XRay.init();
 		MineBot.init();
+		   CritAura.init(category);
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
 	}
@@ -103,6 +104,12 @@ XRay.init();
 		while (toggleKey.consumeClick()) {
 			enabled = !enabled;
 			attackCharge = 0;
+						enabled = !enabled;
+			attackCharge = 0;
+			if (enabled) CritAura.enabled = false;
+			if (enabled) {
+				loadFriends();
+			}
 			if (enabled) {
 				loadFriends();
 			}
