@@ -255,6 +255,8 @@ public class CapsAuraScreen extends Screen {
                 () -> CapsAuraClient.ATTACK_PASSIVE, v -> CapsAuraClient.ATTACK_PASSIVE = v);
         addToggle(contentX + half + GAP, row(4), half, "Aim",
                 () -> CapsAuraClient.AIM, v -> CapsAuraClient.AIM = v);
+           addToggle(contentX, row(5), contentW, "Aura 1.9+",
+           () -> KillAura.enabled, v -> KillAura.setEnabled(v));
     }
 
     private void buildVisuals() {
