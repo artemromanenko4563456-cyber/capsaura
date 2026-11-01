@@ -245,11 +245,6 @@ public class CapsAuraScreen extends Screen {
                 () -> EspOverlay.COLOR_FRIEND, c -> EspOverlay.COLOR_FRIEND = c);
     }
 
-    private void buildWorld() {
-        addToggle(contentX, row(0), contentW, "Bridge",
-                () -> BridgeAssist.enabled, v -> BridgeAssist.enabled = v);
-        addSlider(contentX, row(1), contentW, "Place delay (ticks)", DELAY_MIN, DELAY_MAX, 0,
-                BridgeAssist.PLACE_DELAY_TICKS, v -> BridgeAssist.PLACE_DELAY_TICKS = (int) Math.round(v));
     }
 
     private void buildPlayer() {
