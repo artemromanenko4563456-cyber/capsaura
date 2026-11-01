@@ -31,7 +31,7 @@ import java.util.function.IntSupplier;
 
 public class CapsAuraScreen extends Screen {
 
-    // ------------------------------------------------------------ константы
+    // ------------------------------------------------------------ константи
 
     private static final int OPEN_KEY = GLFW.GLFW_KEY_RIGHT_SHIFT;
     private static KeyMapping openKey;
@@ -48,11 +48,12 @@ public class CapsAuraScreen extends Screen {
             0xFF40C8FF, 0xFF6080FF, 0xFFC060FF, 0xFFFFFFFF
     };
 
-    // Межі ползунків
+    // Межі повзунків
     private static final double RANGE_MIN = 1.0, RANGE_MAX = 6.0;
     private static final double APS_MIN = 1, APS_MAX = 20;
     private static final double ESP_MIN = 16, ESP_MAX = 128;
     private static final double DELAY_MIN = 0, DELAY_MAX = 10;
+    private static final double PERCENT_MIN = 0, PERCENT_MAX = 100;
 
     private static final int SIDEBAR_W = 90;
     private static final int BTN_H = 20;
@@ -60,7 +61,7 @@ public class CapsAuraScreen extends Screen {
     private static final int ROW_H = 24;
 
     private enum Tab {
-        COMBAT("Combat"), VISUALS("Visuals"), WORLD("World");
+        COMBAT("Combat"), VISUALS("Visuals"), WORLD("World"), PLAYER("Player");
         final String title;
         Tab(String title) { this.title = title; }
     }
@@ -125,6 +126,9 @@ public class CapsAuraScreen extends Screen {
 
         BridgeAssist.PLACE_DELAY_TICKS =
                 (int) clamp(getI(p, "placeDelay", BridgeAssist.PLACE_DELAY_TICKS), DELAY_MIN, DELAY_MAX);
+
+        Velocity.HORIZONTAL = clamp(getD(p, "velocityH", Velocity.HORIZONTAL), PERCENT_MIN, PERCENT_MAX);
+        Velocity.VERTICAL = clamp(getD(p, "velocityV", Velocity.VERTICAL), PERCENT_MIN, PERCENT_MAX);
     }
 
     private static void saveConfig() {
@@ -139,6 +143,8 @@ public class CapsAuraScreen extends Screen {
         p.setProperty("colorEnemy", String.valueOf(EspOverlay.COLOR_ENEMY));
         p.setProperty("colorFriend", String.valueOf(EspOverlay.COLOR_FRIEND));
         p.setProperty("placeDelay", String.valueOf(BridgeAssist.PLACE_DELAY_TICKS));
+        p.setProperty("velocityH", String.valueOf(Velocity.HORIZONTAL));
+        p.setProperty("velocityV", String.valueOf(Velocity.VERTICAL));
         try (OutputStream out = Files.newOutputStream(configPath())) {
             p.store(out, "CapsAura settings");
         } catch (IOException ignored) {
@@ -194,6 +200,7 @@ public class CapsAuraScreen extends Screen {
             case COMBAT -> buildCombat();
             case VISUALS -> buildVisuals();
             case WORLD -> buildWorld();
+            case PLAYER -> buildPlayer();
         }
 
         this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> this.onClose())
@@ -242,6 +249,15 @@ public class CapsAuraScreen extends Screen {
                 () -> BridgeAssist.enabled, v -> BridgeAssist.enabled = v);
         addSlider(contentX, row(1), contentW, "Place delay (ticks)", DELAY_MIN, DELAY_MAX, 0,
                 BridgeAssist.PLACE_DELAY_TICKS, v -> BridgeAssist.PLACE_DELAY_TICKS = (int) Math.round(v));
+    }
+
+    private void buildPlayer() {
+        addToggle(contentX, row(0), contentW, "Velocity (anti-KB)",
+                () -> Velocity.enabled, v -> Velocity.enabled = v);
+        addSlider(contentX, row(1), contentW, "Horizontal KB %", PERCENT_MIN, PERCENT_MAX, 0,
+                Velocity.HORIZONTAL, v -> Velocity.HORIZONTAL = Math.round(v));
+        addSlider(contentX, row(2), contentW, "Vertical KB %", PERCENT_MIN, PERCENT_MAX, 0,
+                Velocity.VERTICAL, v -> Velocity.VERTICAL = Math.round(v));
     }
 
     // ---------------------------------------------------------- віджети
@@ -323,25 +339,22 @@ public class CapsAuraScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
 
-        // рамка + панель
         graphics.fill(panelX - 1, panelY - 1, panelX + panelW + 1, panelY + panelH + 1, COL_BORDER);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, COL_PANEL);
-        // бокова панель
         graphics.fill(panelX, panelY, panelX + SIDEBAR_W, panelY + panelH, COL_SIDEBAR);
-        // акцентна смужка зверху
         graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, COL_ACCENT);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        super.extractRenderState(graphics, mouseX, mouseY, partialTick); // фон + віджети
+        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 
         graphics.text(this.font, "CapsAura", panelX + 10, panelY + 14, COL_ACCENT, false);
         graphics.text(this.font, "v1.0.0", panelX + 10, panelY + 26, COL_MUTED, false);
         graphics.text(this.font, currentTab.title, contentX, panelY + 14, COL_TEXT, false);
-        graphics.text(this.font, "Right Shift - open/close", contentX, panelY + 26, COL_MUTED, false);
+        String hint = currentTab == Tab.PLAYER ? "KB %: 0 = no knockback, 100 = vanilla" : "Right Shift - open/close";
+        graphics.text(this.font, hint, contentX, panelY + 26, COL_MUTED, false);
 
-        // кольорові квадратики поверх кнопок вибору кольору
         for (Swatch s : swatches) {
             graphics.fill(s.x() - 1, s.y() - 1, s.x() + 13, s.y() + 13, 0xFF000000);
             graphics.fill(s.x(), s.y(), s.x() + 12, s.y() + 12, s.color().getAsInt() | 0xFF000000);
