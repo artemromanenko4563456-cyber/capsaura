@@ -29,7 +29,7 @@ public final class BridgeAssist {
 	};
 
 	private static KeyMapping toggleKey;
-	private static boolean enabled = false;
+	static boolean enabled = false;
 	private static int delay = 0;
 
 	private BridgeAssist() {}
