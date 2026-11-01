@@ -57,8 +57,9 @@ static boolean AIM = true;              // наводить камеру
 				"key.capsaura.toggle", InputConstants.Type.KEYSYM, TOGGLE_KEY, category));
 		friendKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.capsaura.friend", InputConstants.Type.KEYSYM, FRIEND_KEY, category));
-				BridgeAssist.init(category);
-		   EspOverlay.init(category);
+			EspOverlay.init(category);
+BridgeAssist.init(category);
+CapsAuraScreen.init(category);   // <-- вот эта
 
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
