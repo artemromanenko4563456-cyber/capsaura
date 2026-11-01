@@ -1,71 +1,126 @@
 package com.example.capsaura;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
-import java.lang.reflect.Field;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Locale;
+import java.util.Map;
 
+/** "X-Ray": подсветка руд сквозь стены поверх экрана. */
 public final class XRay {
 
-    static volatile boolean enabled = false;
-    private static volatile Set<Block> hidden = Set.of();
+    // ======== НАСТРОЙКИ ========
+    private static final int RADIUS = 20;            // радиус поиска в блоках
+    private static final int SCAN_EVERY_TICKS = 10;  // как часто пересканировать (20 тиков = 1 сек)
+    private static final int MAX_ORES = 300;         // максимум рамок на экране
+    private static final double LABEL_DISTANCE = 12; // ближе этого пишем название
+    // ===========================
 
-    // Блоки, которые скрываем. Всё остальное (руды, сундуки и т.д.) остаётся видимым.
-    private static final Set<String> HIDDEN_NAMES = new HashSet<>(List.of(
-            "stone", "deepslate", "cobblestone", "mossy_cobblestone", "cobbled_deepslate",
-            "dirt", "grass_block", "coarse_dirt", "podzol", "mycelium", "rooted_dirt", "mud", "clay",
-            "gravel", "sand", "red_sand", "sandstone", "red_sandstone", "snow_block",
-            "granite", "diorite", "andesite", "tuff", "calcite", "dripstone_block",
-            "netherrack", "basalt", "smooth_basalt", "blackstone", "soul_sand", "soul_soil",
-            "end_stone", "terracotta"
-    ));
+    static volatile boolean enabled = false;
+
+    private record OreType(String name, int color) {}
+    private record Ore(int x, int y, int z, int color, String name) {}
+
+    private static final OreType NOT_ORE = new OreType(null, 0);
+    private static final Map<Block, OreType> typeCache = new HashMap<>();
+    private static volatile List<Ore> ores = List.of();
+    private static int tickCounter = 0;
+
+    // Базис камеры и параметры экрана, считаются один раз за кадр
+    private static double fx, fy, fz, rx, rz, ux, uy, uz, tanHalf, aspect, screenW, screenH;
 
     private XRay() {}
 
-    /** Вызывается из миксина (в том числе из потоков сборки чанков). */
+    /** Оставлено для совместимости со старым миксином: блоки больше не скрываются. */
     public static boolean isHidden(BlockState state) {
-        return enabled && hidden.contains(state.getBlock());
+        return false;
     }
 
     static void setEnabled(boolean on) {
-        if (on && hidden.isEmpty()) {
-            hidden = buildHiddenSet();
-        }
         enabled = on;
-        refresh();
+        if (!on) {
+            ores = List.of();
+        }
     }
 
-    private static Set<Block> buildHiddenSet() {
-        Set<Block> set = new HashSet<>();
-        for (Block block : BuiltInRegistries.BLOCK) {
-            String path = BuiltInRegistries.BLOCK.getKey(block).getPath();
-            if (HIDDEN_NAMES.contains(path)) {
-                set.add(block);
+    public static void init() {
+        ClientTickEvents.END_CLIENT_TICK.register(XRay::onTick);
+        HudElementRegistry.attachElementBefore(
+                VanillaHudElements.CHAT,
+                Identifier.fromNamespaceAndPath("capsaura", "ores"),
+                XRay::render);
+    }
+
+    // ---------- поиск руд ----------
+
+    private static void onTick(Minecraft mc) {
+        if (!enabled || mc.player == null || mc.level == null) {
+            if (!ores.isEmpty()) {
+                ores = List.of();
+            }
+            return;
+        }
+        tickCounter++;
+        if (tickCounter % SCAN_EVERY_TICKS != 0) {
+            return;
+        }
+
+        BlockPos center = mc.player.blockPosition();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        List<Ore> found = new ArrayList<>();
+
+        scan:
+        for (int dx = -RADIUS; dx <= RADIUS; dx++) {
+            for (int dz = -RADIUS; dz <= RADIUS; dz++) {
+                for (int dy = -RADIUS; dy <= RADIUS; dy++) {
+                    pos.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
+                    BlockState state = mc.level.getBlockState(pos);
+                    if (state.isAir()) {
+                        continue;
+                    }
+                    OreType type = typeOf(state.getBlock());
+                    if (type.name() == null) {
+                        continue;
+                    }
+                    found.add(new Ore(pos.getX(), pos.getY(), pos.getZ(), type.color(), type.name()));
+                    if (found.size() >= MAX_ORES) {
+                        break scan;
+                    }
+                }
             }
         }
-        return set;
+        ores = found;
     }
 
-    /** Перестраивает чанки и отключает/включает отсечение пещер. */
-    private static void refresh() {
-        Minecraft mc = Minecraft.getInstance();
-        setSmartCull(mc, !enabled);
-        if (mc.levelRenderer != null) {
+    private static OreType typeOf(Block block) {
+        OreType cached = typeCache.get(block);
+        if (cached != null) {
+            return cached;
         }
+        OreType type = classify(BuiltInRegistries.BLOCK.getKey(block).getPath());
+        typeCache.put(block, type);
+        return type;
     }
 
-    // Без отключения "cave culling" глубокие руды не рисуются. Поле может называться иначе - тогда просто пропускаем.
-    private static void setSmartCull(Minecraft mc, boolean value) {
-        try {
-            Field f = Minecraft.class.getDeclaredField("smartCull");
-            f.setAccessible(true);
-            f.setBoolean(mc, value);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
+    private static OreType classify(String path) {
+        if (path.equals("ancient_debris")) {
+            return new OreType("debris", 0xFFB5651D);
         }
-    }
-}
+        if (!path.endsWith("_ore")) {
+            return NOT_ORE;
+        }
+        String
