@@ -36,10 +36,10 @@ public class CapsAuraClient implements ClientModInitializer {
 	private static final int FRIEND_KEY = GLFW.GLFW_KEY_KP_ENTER;   // друг: добавить/убрать (Num Enter)
 	private static final double RANGE = 4.0;                        // радиус атаки в блоках
 	private static final int ATTACKS_PER_SECOND = 7;                // ударов в секунду (от 1 до 20)
-	static final ATTACK_PLAYERS = true;             // бить игроков
-	static final ATTACK_HOSTILE = true;             // бить враждебных мобов
-	static final ATTACK_PASSIVE = false;            // бить животных и жителей
-	static final AIM = true;                        // наводить камеру
+	static boolean ATTACK_PLAYERS = true;   // бить игроков
+static boolean ATTACK_HOSTILE = true;   // бить враждебных мобов
+static boolean ATTACK_PASSIVE = false;  // бить животных и жителей
+static boolean AIM = true;              // наводить камеру
 	// ===========================
 
 	private static KeyMapping toggleKey;
