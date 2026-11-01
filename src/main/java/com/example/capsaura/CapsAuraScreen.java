@@ -3,26 +3,18 @@ package com.example.capsaura;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Properties;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
@@ -31,80 +23,110 @@ import java.util.function.IntSupplier;
 
 public class CapsAuraScreen extends Screen {
 
-    // ------------------------------------------------------------ константи
+    // ------------------------------------------------------------ клавиша
 
     private static final int OPEN_KEY = GLFW.GLFW_KEY_RIGHT_SHIFT;
     private static KeyMapping openKey;
 
-    private static final int COL_BORDER  = 0xFF2A2A3A;
-    private static final int COL_PANEL   = 0xF0141420;
-    private static final int COL_SIDEBAR = 0xFF0E0E16;
-    private static final int COL_ACCENT  = 0xFF7C5CFF;
-    private static final int COL_TEXT    = 0xFFFFFFFF;
-    private static final int COL_MUTED   = 0xFF8A8AA0;
-    private static final int COL_SWITCH_OFF = 0xFF3A3A4A;
-    private static final int COL_ROW     = 0xFF1A1A26;
-    private static final int COL_ROW_HOVER = 0xFF24243A;
+    // ------------------------------------------------------------ цвета
+
+    private static final int C_BORDER = 0xFF2A2A3A;
+    private static final int C_PANEL = 0xFF101018;
+    private static final int C_HEADER = 0xFF14141F;
+    private static final int C_SIDEBAR = 0xFF0B0B12;
+    private static final int C_ROW = 0xFF181824;
+    private static final int C_ROW_HOVER = 0xFF232338;
+    private static final int C_TRACK = 0xFF2B2B3D;
+    private static final int C_ACCENT = 0xFF7C5CFF;
+    private static final int C_TEXT = 0xFFFFFFFF;
+    private static final int C_MUTED = 0xFF8A8AA0;
+    private static final int C_SWITCH_OFF = 0xFF3A3A4A;
 
     private static final int[] PALETTE = {
             0xFFFF4040, 0xFFFFA040, 0xFFFFE040, 0xFF40FF60,
             0xFF40C8FF, 0xFF6080FF, 0xFFC060FF, 0xFFFFFFFF
     };
 
-    // Межі повзунків
-    private static final double RANGE_MIN = 1.0, RANGE_MAX = 6.0;
-    private static final double APS_MIN = 1, APS_MAX = 20;
-    private static final double ESP_MIN = 16, ESP_MAX = 128;
-    private static final double DELAY_MIN = 0, DELAY_MAX = 10;
-    private static final double PERCENT_MIN = 0, PERCENT_MAX = 100;
+    // ------------------------------------------------------------ размеры
 
-    private static final int SIDEBAR_W = 90;
+    private static final int HEADER_H = 30;
+    private static final int SIDEBAR_W = 98;
+    private static final int PAD = 12;
+    private static final int ROW_H = 24;
     private static final int BTN_H = 20;
     private static final int GAP = 4;
-    private static final int ROW_H = 24;
+    private static final int TAB_H = 22;
+    private static final int SWATCH = 16;
+    private static final int SWATCH_STEP = 18;
+    private static final int FOOTER_H = 26;
 
     private enum Tab {
-        COMBAT("Combat"), VISUALS("Visuals"), WORLD("World"), PLAYER("Player");
+        COMBAT("Combat", 0xFFFF5C7C),
+        VISUALS("Visuals", 0xFF40C8FF),
+        WORLD("World", 0xFF40FF60),
+        PLAYER("Player", 0xFFFFA040),
+        INFO("Info", 0xFFC060FF);
+
         final String title;
-        Tab(String title) { this.title = title; }
+        final int color;
+
+        Tab(String title, int color) {
+            this.title = title;
+            this.color = color;
+        }
     }
 
-    private record Swatch(int x, int y, IntSupplier color) {}
+    private static Tab currentTab = Tab.COMBAT;
+    private static final float[] TAB_ANIM = new float[Tab.values().length];
+    private static boolean animReady = false;
 
-    /** Переключатель-ползунок: рисуется поверх невидимой кнопки. */
+    // ------------------------------------------------------------ картинки поверх невидимых кнопок
+
+    private record TabView(int x, int y, int w, int index, Tab tab) {}
+
+    private record SliderView(int x, int y, int w, String label, String desc, ValueSlider slider) {}
+
+    private record PaletteView(int x, int y, int w, String label, String desc, IntSupplier getter) {}
+
+    private record TextView(int x, int y, String text, int color) {}
+
     private static final class SwitchView {
         final int x, y, w;
-        final String label;
+        final String label, desc;
         final BooleanSupplier getter;
-        float anim; // 0 = выключено, 1 = включено
+        float anim;
 
-        SwitchView(int x, int y, int w, String label, BooleanSupplier getter) {
+        SwitchView(int x, int y, int w, String label, String desc, BooleanSupplier getter) {
             this.x = x;
             this.y = y;
             this.w = w;
             this.label = label;
+            this.desc = desc;
             this.getter = getter;
             this.anim = getter.getAsBoolean() ? 1.0f : 0.0f;
         }
     }
 
-    private static Tab currentTab = Tab.COMBAT;
-
-    // ------------------------------------------------------- стан екрана
+    // ------------------------------------------------------------ состояние экрана
 
     private int panelX, panelY, panelW, panelH;
     private int contentX, contentY, contentW;
-    private final List<Swatch> swatches = new ArrayList<>();
+    private int closeX, closeY, closeW;
+
+    private final List<TabView> tabViews = new ArrayList<>();
     private final List<SwitchView> switches = new ArrayList<>();
+    private final List<SliderView> sliders = new ArrayList<>();
+    private final List<PaletteView> palettes = new ArrayList<>();
+    private final List<TextView> texts = new ArrayList<>();
 
     public CapsAuraScreen() {
         super(Component.literal("CapsAura"));
     }
 
-    // ------------------------------------------------------------ клавіша
+    // ------------------------------------------------------------ открытие меню
 
     public static void init(KeyMapping.Category category) {
-        loadConfig();
+        MenuConfig.load();
         openKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.capsaura.menu", InputConstants.Type.KEYSYM, OPEN_KEY, category));
         ClientTickEvents.END_CLIENT_TICK.register(CapsAuraScreen::onTick);
@@ -118,318 +140,29 @@ public class CapsAuraScreen extends Screen {
         }
     }
 
-    // ------------------------------------------------------------- конфіг
-
-    private static Path configPath() {
-        return FabricLoader.getInstance().getConfigDir().resolve("capsaura.properties");
-    }
-
-    private static void loadConfig() {
-        Path path = configPath();
-        if (!Files.exists(path)) return;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(path)) {
-            p.load(in);
-        } catch (IOException e) {
-            return;
-        }
-        CapsAuraClient.RANGE = clamp(getD(p, "range", CapsAuraClient.RANGE), RANGE_MIN, RANGE_MAX);
-        CapsAuraClient.ATTACKS_PER_SECOND =
-                (int) clamp(getI(p, "attacksPerSecond", CapsAuraClient.ATTACKS_PER_SECOND), APS_MIN, APS_MAX);
-        CapsAuraClient.ATTACK_PLAYERS = getB(p, "attackPlayers", CapsAuraClient.ATTACK_PLAYERS);
-        CapsAuraClient.ATTACK_HOSTILE = getB(p, "attackHostile", CapsAuraClient.ATTACK_HOSTILE);
-        CapsAuraClient.ATTACK_PASSIVE = getB(p, "attackPassive", CapsAuraClient.ATTACK_PASSIVE);
-        CapsAuraClient.AIM = getB(p, "aim", CapsAuraClient.AIM);
-
-        EspOverlay.MAX_DISTANCE = clamp(getD(p, "espDistance", EspOverlay.MAX_DISTANCE), ESP_MIN, ESP_MAX);
-        EspOverlay.COLOR_ENEMY = getI(p, "colorEnemy", EspOverlay.COLOR_ENEMY);
-        EspOverlay.COLOR_FRIEND = getI(p, "colorFriend", EspOverlay.COLOR_FRIEND);
-
-        BridgeAssist.PLACE_DELAY_TICKS =
-                (int) clamp(getI(p, "placeDelay", BridgeAssist.PLACE_DELAY_TICKS), DELAY_MIN, DELAY_MAX);
-
-        Velocity.HORIZONTAL = clamp(getD(p, "velocityH", Velocity.HORIZONTAL), PERCENT_MIN, PERCENT_MAX);
-        Velocity.VERTICAL = clamp(getD(p, "velocityV", Velocity.VERTICAL), PERCENT_MIN, PERCENT_MAX);
-    }
-
-    private static void saveConfig() {
-        Properties p = new Properties();
-        p.setProperty("range", String.valueOf(CapsAuraClient.RANGE));
-        p.setProperty("attacksPerSecond", String.valueOf(CapsAuraClient.ATTACKS_PER_SECOND));
-        p.setProperty("attackPlayers", String.valueOf(CapsAuraClient.ATTACK_PLAYERS));
-        p.setProperty("attackHostile", String.valueOf(CapsAuraClient.ATTACK_HOSTILE));
-        p.setProperty("attackPassive", String.valueOf(CapsAuraClient.ATTACK_PASSIVE));
-        p.setProperty("aim", String.valueOf(CapsAuraClient.AIM));
-        p.setProperty("espDistance", String.valueOf(EspOverlay.MAX_DISTANCE));
-        p.setProperty("colorEnemy", String.valueOf(EspOverlay.COLOR_ENEMY));
-        p.setProperty("colorFriend", String.valueOf(EspOverlay.COLOR_FRIEND));
-        p.setProperty("placeDelay", String.valueOf(BridgeAssist.PLACE_DELAY_TICKS));
-        p.setProperty("velocityH", String.valueOf(Velocity.HORIZONTAL));
-        p.setProperty("velocityV", String.valueOf(Velocity.VERTICAL));
-        try (OutputStream out = Files.newOutputStream(configPath())) {
-            p.store(out, "CapsAura settings");
-        } catch (IOException ignored) {
-        }
-    }
-
-    private static double getD(Properties p, String key, double def) {
-        try { return Double.parseDouble(p.getProperty(key)); } catch (Exception e) { return def; }
-    }
-
-    private static int getI(Properties p, String key, int def) {
-        try { return Integer.parseInt(p.getProperty(key)); } catch (Exception e) { return def; }
-    }
-
-    private static boolean getB(Properties p, String key, boolean def) {
-        String s = p.getProperty(key);
-        return s == null ? def : Boolean.parseBoolean(s);
-    }
-
-    private static double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
-    }
-
-    // ------------------------------------------------------------- розмітка
+    // ------------------------------------------------------------ раскладка
 
     @Override
     protected void init() {
-        swatches.clear();
+        tabViews.clear();
         switches.clear();
+        sliders.clear();
+        palettes.clear();
+        texts.clear();
 
-        panelW = Math.min(this.width - 20, 400);
-        panelH = Math.min(this.height - 20, 240);
+        panelW = Math.min(this.width - 20, 440);
+        panelH = Math.min(this.height - 20, 270);
         panelX = (this.width - panelW) / 2;
         panelY = (this.height - panelH) / 2;
-        contentX = panelX + SIDEBAR_W + 14;
-        contentW = panelW - SIDEBAR_W - 28;
-        contentY = panelY + 44;
+        contentX = panelX + SIDEBAR_W + PAD;
+        contentW = panelW - SIDEBAR_W - PAD * 2;
+        contentY = panelY + HEADER_H + 14;
 
-        // Вкладки зліва
-        Tab[] tabs = Tab.values();
-        for (int i = 0; i < tabs.length; i++) {
-            Tab tab = tabs[i];
-            String text = (tab == currentTab) ? "> " + tab.title : tab.title;
-            this.addRenderableWidget(Button.builder(Component.literal(text), b -> {
-                        currentTab = tab;
-                        this.clearWidgets();
-                        this.init();
-                    })
-                    .bounds(panelX + 8, panelY + 44 + i * ROW_H, SIDEBAR_W - 16, BTN_H)
-                    .build());
+        if (!animReady) {
+            for (Tab t : Tab.values()) {
+                TAB_ANIM[t.ordinal()] = (t == currentTab) ? 1.0f : 0.0f;
+            }
+            animReady = true;
         }
 
-        // Вміст поточної вкладки
-        switch (currentTab) {
-            case COMBAT -> buildCombat();
-            case VISUALS -> buildVisuals();
-            case WORLD -> buildWorld();
-            case PLAYER -> buildPlayer();
-        }
-
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> this.onClose())
-                .bounds(panelX + 8, panelY + panelH - 28, SIDEBAR_W - 16, BTN_H)
-                .build());
-    }
-
-    private int row(int i) {
-        return contentY + i * ROW_H;
-    }
-
-    private void buildCombat() {
-        int half = (contentW - GAP) / 2;
-        addToggle(contentX, row(0), half, "Aura 1.8.9",
-                () -> CapsAuraClient.enabled,
-                v -> { CapsAuraClient.enabled = v; if (v) CritAura.enabled = false; });
-        addToggle(contentX + half + GAP, row(0), half, "Aura Crits",
-                () -> CritAura.enabled,
-                v -> { CritAura.enabled = v; if (v) CapsAuraClient.enabled = false; });
-        addSlider(contentX, row(1), contentW, "Range", RANGE_MIN, RANGE_MAX, 1,
-                CapsAuraClient.RANGE, v -> CapsAuraClient.RANGE = v);
-        addSlider(contentX, row(2), contentW, "Attacks/sec (1.8.9)", APS_MIN, APS_MAX, 0,
-                CapsAuraClient.ATTACKS_PER_SECOND, v -> CapsAuraClient.ATTACKS_PER_SECOND = (int) Math.round(v));
-        addToggle(contentX, row(3), half, "Players",
-                () -> CapsAuraClient.ATTACK_PLAYERS, v -> CapsAuraClient.ATTACK_PLAYERS = v);
-        addToggle(contentX + half + GAP, row(3), half, "Hostile",
-                () -> CapsAuraClient.ATTACK_HOSTILE, v -> CapsAuraClient.ATTACK_HOSTILE = v);
-        addToggle(contentX, row(4), half, "Passive",
-                () -> CapsAuraClient.ATTACK_PASSIVE, v -> CapsAuraClient.ATTACK_PASSIVE = v);
-        addToggle(contentX + half + GAP, row(4), half, "Aim",
-                () -> CapsAuraClient.AIM, v -> CapsAuraClient.AIM = v);
-           addToggle(contentX, row(5), contentW, "Aura 1.9+",
-           () -> KillAura.enabled, v -> KillAura.setEnabled(v));
-    }
-
-    private void buildVisuals() {
-        int half = (contentW - GAP) / 2;
-        addToggle(contentX, row(0), half, "ESP",
-                () -> EspOverlay.espOn, v -> EspOverlay.espOn = v);
-        addToggle(contentX + half + GAP, row(0), half, "Tracers",
-                () -> EspOverlay.tracersOn, v -> EspOverlay.tracersOn = v);
-        addSlider(contentX, row(1), contentW, "ESP distance", ESP_MIN, ESP_MAX, 0,
-                EspOverlay.MAX_DISTANCE, v -> EspOverlay.MAX_DISTANCE = v);
-        addColorButton(row(2), "Enemy color",
-                () -> EspOverlay.COLOR_ENEMY, c -> EspOverlay.COLOR_ENEMY = c);
-        addColorButton(row(3), "Friend color",
-                () -> EspOverlay.COLOR_FRIEND, c -> EspOverlay.COLOR_FRIEND = c);
-    }
-
-    private void buildWorld() {
-        addToggle(contentX, row(0), contentW, "Bridge",
-                () -> BridgeAssist.enabled, v -> BridgeAssist.enabled = v);
-        addSlider(contentX, row(1), contentW, "Place delay (ticks)", DELAY_MIN, DELAY_MAX, 0,
-                BridgeAssist.PLACE_DELAY_TICKS, v -> BridgeAssist.PLACE_DELAY_TICKS = (int) Math.round(v));
-        addToggle(contentX, row(2), contentW, "X-Ray",
-                () -> XRay.enabled, v -> XRay.setEnabled(v));
-    }
-
-    private void buildPlayer() {
-        addToggle(contentX, row(0), contentW, "Velocity (anti-KB)",
-                () -> Velocity.enabled, v -> Velocity.enabled = v);
-        addSlider(contentX, row(1), contentW, "Horizontal KB %", PERCENT_MIN, PERCENT_MAX, 0,
-                Velocity.HORIZONTAL, v -> Velocity.HORIZONTAL = Math.round(v));
-        addSlider(contentX, row(2), contentW, "Vertical KB %", PERCENT_MIN, PERCENT_MAX, 0,
-                Velocity.VERTICAL, v -> Velocity.VERTICAL = Math.round(v));
-    }
-
-    // ---------------------------------------------------------- віджети
-       private static Component toggleText(String label, boolean value) {
-           return Component.literal(label + ": " + (value ? "ON" : "OFF"));
-       }
-    /** Невидима кнопка принимает клик, а вид (ползунок-переключатель) рисуется поверх неё. */
-       private void addToggle(int x, int y, int w, String label, BooleanSupplier getter, Consumer<Boolean> setter) {
-        this.addRenderableWidget(Button.builder(toggleText(label, getter.getAsBoolean()), b -> {
-                    boolean now = !getter.getAsBoolean();
-                    setter.accept(now);
-                    this.clearWidgets();
-                    this.init();
-                })
-                .bounds(x, y, w, BTN_H)
-                .build());
-    }
-
-    private void addSlider(int x, int y, int w, String label, double min, double max, int decimals,
-                           double current, DoubleConsumer onChange) {
-        this.addRenderableWidget(new ValueSlider(x, y, w, BTN_H, label, min, max, decimals, current, onChange));
-    }
-
-    private void addColorButton(int y, String label, IntSupplier getter, IntConsumer setter) {
-        this.addRenderableWidget(Button.builder(Component.literal(label), b -> {
-                    int cur = getter.getAsInt();
-                    int next = 0;
-                    for (int i = 0; i < PALETTE.length; i++) {
-                        if (PALETTE[i] == cur) {
-                            next = (i + 1) % PALETTE.length;
-                            break;
-                        }
-                    }
-                    setter.accept(PALETTE[next]);
-                })
-                .bounds(contentX, y, contentW, BTN_H)
-                .build());
-        swatches.add(new Swatch(contentX + contentW - 18, y + 4, getter));
-    }
-
-    private static final class ValueSlider extends AbstractSliderButton {
-        private final String label;
-        private final double min, max;
-        private final int decimals;
-        private final DoubleConsumer onChange;
-
-        ValueSlider(int x, int y, int w, int h, String label, double min, double max, int decimals,
-                    double current, DoubleConsumer onChange) {
-            super(x, y, w, h, Component.empty(),
-                    Math.max(0.0, Math.min(1.0, (current - min) / (max - min))));
-            this.label = label;
-            this.min = min;
-            this.max = max;
-            this.decimals = decimals;
-            this.onChange = onChange;
-            updateMessage();
-        }
-
-        private double real() {
-            return min + (max - min) * this.value;
-        }
-
-        @Override
-        protected void updateMessage() {
-            if (label == null) return;
-            this.setMessage(Component.literal(
-                    label + ": " + String.format(Locale.ROOT, "%." + decimals + "f", real())));
-        }
-
-        @Override
-        protected void applyValue() {
-            onChange.accept(real());
-        }
-    }
-
-    // ------------------------------------------------------------ рендер
-
-    @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        super.extractBackground(graphics, mouseX, mouseY, delta);
-
-        graphics.fill(panelX - 1, panelY - 1, panelX + panelW + 1, panelY + panelH + 1, COL_BORDER);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, COL_PANEL);
-        graphics.fill(panelX, panelY, panelX + SIDEBAR_W, panelY + panelH, COL_SIDEBAR);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, COL_ACCENT);
-    }
-
-    @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-
-        graphics.text(this.font, "CapsAura", panelX + 10, panelY + 14, COL_ACCENT, false);
-        graphics.text(this.font, "v1.0.0", panelX + 10, panelY + 26, COL_MUTED, false);
-        graphics.text(this.font, currentTab.title, contentX, panelY + 14, COL_TEXT, false);
-        String hint = currentTab == Tab.PLAYER ? "KB %: 0 = no knockback, 100 = vanilla" : "Right Shift - open/close";
-        graphics.text(this.font, hint, contentX, panelY + 26, COL_MUTED, false);
-
-        // Переключатели-ползунки (закрывают невидимые кнопки под ними)
-        for (SwitchView s : switches) {
-            boolean on = s.getter.getAsBoolean();
-            s.anim += ((on ? 1.0f : 0.0f) - s.anim) * 0.35f;
-
-            boolean hover = mouseX >= s.x && mouseX < s.x + s.w && mouseY >= s.y && mouseY < s.y + BTN_H;
-            graphics.fill(s.x, s.y, s.x + s.w, s.y + BTN_H, hover ? COL_ROW_HOVER : COL_ROW);
-
-            int textY = s.y + (BTN_H - this.font.lineHeight) / 2 + 1;
-            graphics.text(this.font, s.label, s.x + 6, textY, COL_TEXT, false);
-
-            int trackW = 26;
-            int trackH = 12;
-            int trackX = s.x + s.w - trackW - 6;
-            int trackY = s.y + (BTN_H - trackH) / 2;
-            drawPill(graphics, trackX, trackY, trackW, trackH, blend(COL_SWITCH_OFF, COL_ACCENT, s.anim));
-
-            int knob = trackH - 4;
-            int knobX = trackX + 2 + Math.round(s.anim * (trackW - 4 - knob));
-            drawPill(graphics, knobX, trackY + 2, knob, knob, 0xFFFFFFFF);
-        }
-
-        for (Swatch s : swatches) {
-            graphics.fill(s.x() - 1, s.y() - 1, s.x() + 13, s.y() + 13, 0xFF000000);
-            graphics.fill(s.x(), s.y(), s.x() + 12, s.y() + 12, s.color().getAsInt() | 0xFF000000);
-        }
-    }
-
-    /** Прямоугольник со срезанными углами (имитация скругления). */
-    private static void drawPill(GuiGraphicsExtractor g, int x, int y, int w, int h, int color) {
-        g.fill(x + 1, y, x + w - 1, y + h, color);
-        g.fill(x, y + 1, x + w, y + h - 1, color);
-    }
-
-    private static int blend(int a, int b, float t) {
-        int r = Math.round(((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
-        int g = Math.round(((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
-        int bl = Math.round((a & 0xFF) * (1 - t) + (b & 0xFF) * t);
-        return 0xFF000000 | (r << 16) | (g << 8) | bl;
-    }
-
-    @Override
-    public void onClose() {
-        saveConfig();
-        super.onClose();
-    }
-}
+        Tab[]
