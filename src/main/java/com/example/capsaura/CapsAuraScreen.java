@@ -196,12 +196,14 @@ public class CapsAuraScreen extends Screen {
                     .build());
         }
 
-        switch (currentTab) {
-            case COMBAT -> buildCombat();
-            case VISUALS -> buildVisuals();
-            case WORLD -> buildWorld();
-            case PLAYER -> buildPlayer();
-        }
+    private void buildWorld() {
+    addToggle(contentX, row(0), contentW, "Bridge",
+            () -> BridgeAssist.enabled, v -> BridgeAssist.enabled = v);
+    addSlider(contentX, row(1), contentW, "Place delay (ticks)", DELAY_MIN, DELAY_MAX, 0,
+            BridgeAssist.PLACE_DELAY_TICKS, v -> BridgeAssist.PLACE_DELAY_TICKS = (int) Math.round(v));
+    addToggle(contentX, row(2), contentW, "X-Ray",
+            () -> XRay.enabled, v -> XRay.setEnabled(v));
+}
 
         this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> this.onClose())
                 .bounds(panelX + 8, panelY + panelH - 28, SIDEBAR_W - 16, BTN_H)
