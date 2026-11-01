@@ -273,7 +273,8 @@ public class CapsAuraScreen extends Screen {
         this.addRenderableWidget(Button.builder(toggleText(label, getter.getAsBoolean()), b -> {
                     boolean now = !getter.getAsBoolean();
                     setter.accept(now);
-                    b.setMessage(toggleText(label, now));
+                    this.clearWidgets();
+                    this.init();
                 })
                 .bounds(x, y, w, BTN_H)
                 .build());
