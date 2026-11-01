@@ -290,7 +290,9 @@ public class CapsAuraScreen extends Screen {
     }
 
     // ---------------------------------------------------------- віджети
-
+       private static Component toggleText(String label, boolean value) {
+           return Component.literal(label + ": " + (value ? "ON" : "OFF"));
+       }
     /** Невидима кнопка принимает клик, а вид (ползунок-переключатель) рисуется поверх неё. */
        private void addToggle(int x, int y, int w, String label, BooleanSupplier getter, Consumer<Boolean> setter) {
         this.addRenderableWidget(Button.builder(toggleText(label, getter.getAsBoolean()), b -> {
