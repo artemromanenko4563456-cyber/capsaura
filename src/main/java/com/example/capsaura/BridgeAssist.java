@@ -21,7 +21,7 @@ public final class BridgeAssist {
 
 	// ======== НАСТРОЙКИ ========
 	private static final int TOGGLE_KEY = GLFW.GLFW_KEY_G; // клавиша «П» на русской раскладке
-	private static final int PLACE_DELAY_TICKS = 1;        // 1 = каждый тик, 2 = через тик и т.д.
+	static int PLACE_DELAY_TICKS = 4;        // 1 = каждый тик, 2 = через тик и т.д.
 	// ===========================
 
 	private static final Direction[] SIDES = {
