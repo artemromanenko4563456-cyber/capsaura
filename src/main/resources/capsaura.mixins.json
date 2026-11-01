@@ -4,7 +4,8 @@
   "package": "com.example.capsaura.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
-    "ClientPacketListenerMixin"
+    "ClientPacketListenerMixin",
+    "BlockStateBaseMixin"
   ],
   "injectors": {
     "defaultRequire": 1
