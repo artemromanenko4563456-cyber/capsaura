@@ -223,12 +223,15 @@ public class CapsAuraScreen extends Screen {
                 () -> CapsAuraClient.ATTACK_PASSIVE, v -> CapsAuraClient.ATTACK_PASSIVE = v);
         addToggle(contentX + half + GAP, row(4), half, "Aim", "Turn the camera towards the target",
                 () -> CapsAuraClient.AIM, v -> CapsAuraClient.AIM = v);
-        addToggle(contentX, row(5), contentW, "Aura 1.9+ (old)", "Your extra 1.9+ aura",
+               addToggle(contentX, row(5), contentW, "Aura 1.9+ (old)", "Your extra 1.9+ aura",
                 () -> KillAura.enabled, v -> KillAura.setEnabled(v));
-                addToggle(contentX, row(6), contentW, "Bow Assist", "Aims your bow at the nearest player (key M)",
+        addToggle(contentX, row(6), half, "Bow Assist", "Aims your bow at the nearest player (key M)",
                 () -> BowAssist.enabled, v -> BowAssist.enabled = v);
-                addToggle(contentX + half + GAP, row(4), half, "Aim", "Turn towards the target (other players see it)",
-                () -> CapsAuraClient.AIM, v -> CapsAuraClient.AIM = v);
+        addToggle(contentX + half + GAP, row(6), half, "My camera", "Your own camera also turns to the target",
+                () -> SilentRotation.cameraFollow, v -> SilentRotation.cameraFollow = v);
+        addToggle(contentX, row(7), contentW, "Smooth turn", "Turn towards the target smoothly instead of snapping",
+                () -> SilentRotation.smooth, v -> SilentRotation.smooth = v);
+    }
     }
 
     private void buildVisuals() {
