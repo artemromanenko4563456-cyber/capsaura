@@ -17,6 +17,9 @@ public final class SilentRotation {
     /** Сколько тиков держать поворот после последнего наведения. */
     private static final int HOLD_TICKS = 5;
 
+    /** true: камера у тебя на экране тоже крутится на цель. false: крутится только у других. */
+    public static boolean cameraFollow = false;
+
     private static boolean spoofing;
     private static int lastAimTick;
     private static float spoofYaw;
@@ -41,6 +44,12 @@ public final class SilentRotation {
         float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, flat));
         pitch = Math.max(-90.0F, Math.min(90.0F, pitch));
+
+        // режим "видимая камера": твоя камера тоже поворачивается на цель
+        if (cameraFollow) {
+            player.setYRot(yaw);
+            player.setXRot(pitch);
+        }
 
         spoofYaw = yaw;
         spoofPitch = pitch;
