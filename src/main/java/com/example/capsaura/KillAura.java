@@ -13,6 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Locale;
@@ -20,11 +21,11 @@ import java.util.Locale;
 /**
  * "Aura 1.9+": PvP для новых версий (с перезарядкой оружия).
  *
- * Бьёт только когда оружие заряжено (на 1.9+ иначе урон режется).
- * Наведение делает SilentRotation: камера не двигается, серверу уходит пакет с поворотом.
+ * Старая "Aura 1.8.9" бьёт N раз в секунду, не глядя на перезарядку.
+ * Эта бьёт только когда оружие заряжено (на 1.9+ иначе урон режется).
  *
  * Настройки (Range, Players, Hostile, Passive, Aim) общие с меню CapsAura:
- * берутся из CapsAuraClient.
+ * берутся из CapsAuraClient, поэтому отдельных ползунков не нужно.
  */
 public final class KillAura {
 
@@ -37,7 +38,6 @@ public final class KillAura {
     public static boolean enabled = false;
 
     private static KeyMapping toggleKey;
-    private static KeyMapping cameraKey;
 
     private KillAura() {
     }
@@ -45,8 +45,6 @@ public final class KillAura {
     public static void init(KeyMapping.Category category) {
         toggleKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.capsaura.killaura", InputConstants.Type.KEYSYM, TOGGLE_KEY, category));
-        cameraKey = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping("key.capsaura.camera", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, category));
         ClientTickEvents.END_CLIENT_TICK.register(KillAura::onTick);
     }
 
@@ -67,11 +65,6 @@ public final class KillAura {
             say(mc, "Aura 1.9+: " + (enabled ? "ON" : "OFF"));
         }
 
-        while (cameraKey.consumeClick()) {
-            SilentRotation.cameraFollow = !SilentRotation.cameraFollow;
-            say(mc, "Камера следует за целью: " + (SilentRotation.cameraFollow ? "ON" : "OFF"));
-        }
-
         // если включили другую ауру (через меню или клавишу), эта выключается
         if (enabled && (CapsAuraClient.enabled || CritAura.enabled)) {
             enabled = false;
@@ -88,7 +81,7 @@ public final class KillAura {
         }
 
         if (CapsAuraClient.AIM) {
-            SilentRotation.aimAt(player, target);
+            aimAt(player, target);
         }
 
         if (player.getAttackStrengthScale(0.5F) < MIN_CHARGE) {
@@ -128,6 +121,18 @@ public final class KillAura {
             return !CapsAuraClient.friends.contains(name);
         }
         return e instanceof Enemy ? CapsAuraClient.ATTACK_HOSTILE : CapsAuraClient.ATTACK_PASSIVE;
+    }
+
+    private static void SilentRotation.aimAt(player, target); {
+        Vec3 from = player.getEyePosition();
+        Vec3 to = target.getBoundingBox().getCenter();
+        double dx = to.x - from.x;
+        double dy = to.y - from.y;
+        double dz = to.z - from.z;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+
+        player.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+        player.setXRot((float) -Math.toDegrees(Math.atan2(dy, flat)));
     }
 
     private static void say(Minecraft mc, String text) {
