@@ -14,19 +14,27 @@ import org.lwjgl.glfw.GLFW;
 import java.util.Locale;
 
 /**
- * Bow assist: while you hold a drawn bow, the camera aims at the nearest player
- * with gravity compensation and target movement prediction. You still release the bow yourself.
+ * Bow assist: while you hold a drawn bow, the camera aims at a player with gravity
+ * compensation and smoothed target movement prediction. You release the bow yourself.
  */
 public final class BowAssist {
 
     // ======== SETTINGS ========
     static boolean enabled = false;
-    static double MAX_RANGE = 60.0;      // max distance to a target, blocks
+    static double MAX_RANGE = 60.0;       // max distance to a target, blocks
     static boolean ATTACK_FRIENDS = false;
+    static double LEAD = 1.0;             // how strongly to lead a moving target (0 = no lead)
+    static double MAX_STEP_YAW = 40.0;    // max camera turn per tick, degrees
+    static double MAX_STEP_PITCH = 30.0;
     // ==========================
 
     private static final int TOGGLE_KEY = GLFW.GLFW_KEY_M;
     private static KeyMapping toggleKey;
+
+    // locked target and its smoothed speed (blocks per tick)
+    private static AbstractClientPlayer locked = null;
+    private static double svx = 0.0;
+    private static double svz = 0.0;
 
     private BowAssist() {}
 
@@ -45,85 +53,89 @@ public final class BowAssist {
         }
 
         LocalPlayer player = mc.player;
-               if (!enabled || player == null || mc.level == null) {
+        if (!enabled || player == null || mc.level == null) {
+            locked = null;
             return;
         }
         if (!player.isUsingItem() || !player.getUseItem().is(Items.BOW)) {
+            locked = null;
             return;
         }
 
-        // Arrow speed depends on how long the bow has been drawn
-        float power = player.getTicksUsingItem() / 20.0f;
-        power = (power * power + power * 2.0f) / 3.0f;
-        if (power < 0.1f) {
-            return;
-        }
-        if (power > 1.0f) {
-            power = 1.0f;
-        }
-        double speed = power * 3.0;
+        // Aim as if the bow is fully drawn, so the angle does not jump while drawing
+        double speed = 3.0;
 
-        AbstractClientPlayer target = findTarget(mc, player);
+        AbstractClientPlayer target = pickTarget(mc, player);
         if (target == null) {
             return;
         }
+
+        // Smoothed target speed (a raw per-tick delta is too noisy and causes "circling")
+        double rawVx = clampSpeed(target.getX() - target.xo);
+        double rawVz = clampSpeed(target.getZ() - target.zo);
+        svx = svx * 0.8 + rawVx * 0.2;
+        svz = svz * 0.8 + rawVz * 0.2;
 
         double eyeX = player.getX();
         double eyeY = player.getEyeY();
         double eyeZ = player.getZ();
 
-        // Target speed per tick (from the previous tick position)
-        double vx = target.getX() - target.xo;
-        double vy = target.getY() - target.yo;
-        double vz = target.getZ() - target.zo;
-
-        double aimHeight = target.getBbHeight() * 0.6;
         double tx = target.getX();
-        double ty = target.getY() + aimHeight;
+        double ty = target.getY() + target.getBbHeight() * 0.6;
         double tz = target.getZ();
 
         double flightTicks = 0.0;
         double theta = 0.0;
-        // Repeat so that the lead converges
         for (int i = 0; i < 4; i++) {
-            double px = tx + vx * flightTicks;
-            double py = ty + vy * flightTicks * 0.5;
-            double pz = tz + vz * flightTicks;
-
+            double px = tx + svx * flightTicks * LEAD;
+            double pz = tz + svz * flightTicks * LEAD;
             double dx = px - eyeX;
             double dz = pz - eyeZ;
-            double dy = py - eyeY;
             double dist = Math.sqrt(dx * dx + dz * dz);
-
-            double[] res = solvePitch(dist, dy, speed);
+            double[] res = solvePitch(dist, ty - eyeY, speed);
             theta = res[0];
-            flightTicks = res[1];
+            flightTicks = Math.min(res[1], 40.0);
         }
 
-        double px = tx + vx * flightTicks;
-        double pz = tz + vz * flightTicks;
+        double px = tx + svx * flightTicks * LEAD;
+        double pz = tz + svz * flightTicks * LEAD;
         double dx = px - eyeX;
         double dz = pz - eyeZ;
 
-        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
-        float pitch = (float) (-Math.toDegrees(theta));
+        float wantYaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+        float wantPitch = (float) (-Math.toDegrees(theta));
 
-        player.setYRot(yaw);
-        player.setXRot(pitch);
+        // Turn towards the target by the shortest path with a step limit
+        float yawDiff = wrap(wantYaw - player.getYRot());
+        float pitchDiff = wantPitch - player.getXRot();
+        yawDiff = (float) Math.max(-MAX_STEP_YAW, Math.min(MAX_STEP_YAW, yawDiff));
+        pitchDiff = (float) Math.max(-MAX_STEP_PITCH, Math.min(MAX_STEP_PITCH, pitchDiff));
+
+        player.setYRot(player.getYRot() + yawDiff);
+        player.setXRot(player.getXRot() + pitchDiff);
     }
 
-    private static AbstractClientPlayer findTarget(Minecraft mc, LocalPlayer self) {
+    private static double clampSpeed(double v) {
+        return Math.max(-0.8, Math.min(0.8, v));
+    }
+
+    private static float wrap(float deg) {
+        while (deg > 180.0f) deg -= 360.0f;
+        while (deg < -180.0f) deg += 360.0f;
+        return deg;
+    }
+
+    /** Keeps the same target until it dies or goes out of range, so the aim does not jump between players. */
+    private static AbstractClientPlayer pickTarget(Minecraft mc, LocalPlayer self) {
+        if (locked != null && isValid(locked, self)) {
+            return locked;
+        }
+
         AbstractClientPlayer best = null;
         double bestDist = MAX_RANGE;
         for (AbstractClientPlayer p : mc.level.players()) {
-            if (p == self || !p.isAlive() || p.isSpectator()) {
+            if (!isValid(p, self)) {
                 continue;
-            }
-            if (!ATTACK_FRIENDS) {
-                String name = p.getName().getString().toLowerCase(Locale.ROOT);
-                if (CapsAuraClient.friends.contains(name)) {
-                    continue;
-                }
             }
             double d = self.distanceTo(p);
             if (d < bestDist) {
@@ -131,7 +143,28 @@ public final class BowAssist {
                 best = p;
             }
         }
+        if (best != locked) {
+            svx = 0.0;
+            svz = 0.0;
+        }
+        locked = best;
         return best;
+    }
+
+    private static boolean isValid(AbstractClientPlayer p, LocalPlayer self) {
+        if (p == self || !p.isAlive() || p.isSpectator()) {
+            return false;
+        }
+        if (self.distanceTo(p) > MAX_RANGE) {
+            return false;
+        }
+        if (!ATTACK_FRIENDS) {
+            String name = p.getName().getString().toLowerCase(Locale.ROOT);
+            if (CapsAuraClient.friends.contains(name)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -186,7 +219,6 @@ public final class BowAssist {
                 bestTime = hitT;
             }
             if (err < 0.15) {
-                // the first (lowest) good angle is the direct shot
                 break;
             }
         }
