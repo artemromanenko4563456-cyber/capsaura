@@ -24,8 +24,8 @@ public final class SilentRotation {
     /** Сколько тиков держать поворот после последнего наведения. */
     private static final int HOLD_TICKS = 5;
     /** Максимальный доворот за тик (градусы). Меньше = плавнее, но медленнее. */
-    public static float MAX_YAW_STEP = 25.0F;
-    public static float MAX_PITCH_STEP = 15.0F;
+    public static float MAX_YAW_STEP = 12.0F;
+    public static float MAX_PITCH_STEP = 8.0F;
 
     private static boolean spoofing;
     private static int lastAimTick = Integer.MIN_VALUE;
