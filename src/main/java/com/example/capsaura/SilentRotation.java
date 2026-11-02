@@ -18,6 +18,9 @@ public final class SilentRotation {
     /** true: камера у тебя на экране тоже крутится на цель. false: крутится только у других. */
     public static boolean cameraFollow = false;
 
+    /** true: плавный доворот (шагами). false: мгновенный поворот на цель. */
+    public static boolean smooth = true;
+
     /** Сколько тиков держать поворот после последнего наведения. */
     private static final int HOLD_TICKS = 5;
     /** Максимальный доворот за тик (градусы). Меньше = плавнее, но медленнее. */
@@ -30,6 +33,14 @@ public final class SilentRotation {
     private static float curPitch;
 
     private SilentRotation() {}
+
+    private static float yawStep() {
+        return smooth ? MAX_YAW_STEP : 360.0F;
+    }
+
+    private static float pitchStep() {
+        return smooth ? MAX_PITCH_STEP : 360.0F;
+    }
 
     /** Вызвать один раз из CapsAuraClient.onInitializeClient(). */
     public static void init() {
@@ -55,8 +66,8 @@ public final class SilentRotation {
             curPitch = player.getXRot();
         }
 
-        float dYaw = Mth.clamp(Mth.wrapDegrees(targetYaw - curYaw), -MAX_YAW_STEP, MAX_YAW_STEP);
-        float dPitch = Mth.clamp(targetPitch - curPitch, -MAX_PITCH_STEP, MAX_PITCH_STEP);
+        float dYaw = Mth.clamp(Mth.wrapDegrees(targetYaw - curYaw), -yawStep(), yawStep());
+        float dPitch = Mth.clamp(targetPitch - curPitch, -pitchStep(), pitchStep());
         curYaw += dYaw;
         curPitch = Mth.clamp(curPitch + dPitch, -90.0F, 90.0F);
 
@@ -81,8 +92,8 @@ public final class SilentRotation {
             // аура давно не целилась: плавно возвращаем серверу настоящий поворот камеры
             float realYaw = player.getYRot();
             float realPitch = player.getXRot();
-            float dYaw = Mth.clamp(Mth.wrapDegrees(realYaw - curYaw), -MAX_YAW_STEP, MAX_YAW_STEP);
-            float dPitch = Mth.clamp(realPitch - curPitch, -MAX_PITCH_STEP, MAX_PITCH_STEP);
+            float dYaw = Mth.clamp(Mth.wrapDegrees(realYaw - curYaw), -yawStep(), yawStep());
+            float dPitch = Mth.clamp(realPitch - curPitch, -pitchStep(), pitchStep());
             curYaw += dYaw;
             curPitch = Mth.clamp(curPitch + dPitch, -90.0F, 90.0F);
             send(player, curYaw, curPitch);
