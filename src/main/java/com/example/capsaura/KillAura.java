@@ -37,6 +37,7 @@ public final class KillAura {
     public static boolean enabled = false;
 
     private static KeyMapping toggleKey;
+    private static KeyMapping cameraKey;
 
     private KillAura() {
     }
@@ -44,6 +45,8 @@ public final class KillAura {
     public static void init(KeyMapping.Category category) {
         toggleKey = KeyMappingHelper.registerKeyMapping(
                 new KeyMapping("key.capsaura.killaura", InputConstants.Type.KEYSYM, TOGGLE_KEY, category));
+        cameraKey = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.capsaura.camera", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, category));
         ClientTickEvents.END_CLIENT_TICK.register(KillAura::onTick);
     }
 
@@ -62,6 +65,11 @@ public final class KillAura {
         while (toggleKey.consumeClick()) {
             setEnabled(!enabled);
             say(mc, "Aura 1.9+: " + (enabled ? "ON" : "OFF"));
+        }
+
+        while (cameraKey.consumeClick()) {
+            SilentRotation.cameraFollow = !SilentRotation.cameraFollow;
+            say(mc, "Камера следует за целью: " + (SilentRotation.cameraFollow ? "ON" : "OFF"));
         }
 
         // если включили другую ауру (через меню или клавишу), эта выключается
