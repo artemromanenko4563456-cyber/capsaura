@@ -227,6 +227,8 @@ public class CapsAuraScreen extends Screen {
                 () -> KillAura.enabled, v -> KillAura.setEnabled(v));
                 addToggle(contentX, row(6), contentW, "Bow Assist", "Aims your bow at the nearest player (key M)",
                 () -> BowAssist.enabled, v -> BowAssist.enabled = v);
+                addToggle(contentX + half + GAP, row(4), half, "Aim", "Turn towards the target (other players see it)",
+                () -> CapsAuraClient.AIM, v -> CapsAuraClient.AIM = v);
     }
 
     private void buildVisuals() {
