@@ -37,9 +37,9 @@ public class CapsAuraClient implements ClientModInitializer {
 	static double RANGE = 4.0;                        // радиус атаки в блоках
 	static int ATTACKS_PER_SECOND = 7;                // ударов в секунду (от 1 до 20)
 	static boolean ATTACK_PLAYERS = true;   // бить игроков
-static boolean ATTACK_HOSTILE = true;   // бить враждебных мобов
-static boolean ATTACK_PASSIVE = false;  // бить животных и жителей
-static boolean AIM = true;              // наводить камеру
+	static boolean ATTACK_HOSTILE = true;   // бить враждебных мобов
+	static boolean ATTACK_PASSIVE = false;  // бить животных и жителей
+	static boolean AIM = true;              // наводиться на цель (тихо: камера не крутится)
 	// ===========================
 
 	private static KeyMapping toggleKey;
@@ -57,13 +57,15 @@ static boolean AIM = true;              // наводить камеру
 				"key.capsaura.toggle", InputConstants.Type.KEYSYM, TOGGLE_KEY, category));
 		friendKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.capsaura.friend", InputConstants.Type.KEYSYM, FRIEND_KEY, category));
-			EspOverlay.init(category);
-BridgeAssist.init(category);
-CapsAuraScreen.init(category);   // <-- вот эта
-XRay.init();
+
+		SilentRotation.init();   // тихая ротация для обеих аур
+		EspOverlay.init(category);
+		BridgeAssist.init(category);
+		CapsAuraScreen.init(category);
+		XRay.init();
 		MineBot.init();
-		   CritAura.init(category);
-		        BowAssist.init(category);
+		CritAura.init(category);
+		BowAssist.init(category);
 		KillAura.init(category);
 		loadFriends();
 		ClientTickEvents.END_CLIENT_TICK.register(CapsAuraClient::onTick);
@@ -233,17 +235,9 @@ XRay.init();
 		return ATTACK_PASSIVE;
 	}
 
-	/** Поворачивает камеру на центр цели. */
+	/** Тихая наводка: серверу уходит поворот на цель, камера игрока не двигается. */
 	private static void aimAt(LocalPlayer player, LivingEntity target) {
-		Vec3 from = player.getEyePosition();
-		Vec3 to = target.getBoundingBox().getCenter();
-		double dx = to.x - from.x;
-		double dy = to.y - from.y;
-		double dz = to.z - from.z;
-		double flat = Math.sqrt(dx * dx + dz * dz);
-
-		player.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-		player.setXRot((float) (-Math.toDegrees(Math.atan2(dy, flat))));
+		SilentRotation.aimAt(player, target);
 	}
 
 	private static void say(Minecraft mc, String text) {
