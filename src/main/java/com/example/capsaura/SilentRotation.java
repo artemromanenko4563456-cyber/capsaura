@@ -4,26 +4,30 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * Тихая ротация: камера у тебя не двигается, а серверу (и другим игрокам)
  * уходит пакет с поворотом на цель.
- * Поворот удерживается несколько тиков и пересылается каждый тик,
- * чтобы сервер успел разослать его другим игрокам.
+ * Поворот плавный: за тик голова доворачивается не больше чем на MAX_YAW_STEP градусов,
+ * поэтому другие игроки видят движение, а не резкий рывок.
  */
 public final class SilentRotation {
-    /** Сколько тиков держать поворот после последнего наведения. */
-    private static final int HOLD_TICKS = 5;
-
     /** true: камера у тебя на экране тоже крутится на цель. false: крутится только у других. */
     public static boolean cameraFollow = false;
 
+    /** Сколько тиков держать поворот после последнего наведения. */
+    private static final int HOLD_TICKS = 5;
+    /** Максимальный доворот за тик (градусы). Меньше = плавнее, но медленнее. */
+    public static float MAX_YAW_STEP = 25.0F;
+    public static float MAX_PITCH_STEP = 15.0F;
+
     private static boolean spoofing;
-    private static int lastAimTick;
-    private static float spoofYaw;
-    private static float spoofPitch;
+    private static int lastAimTick = Integer.MIN_VALUE;
+    private static float curYaw;
+    private static float curPitch;
 
     private SilentRotation() {}
 
@@ -32,7 +36,7 @@ public final class SilentRotation {
         ClientTickEvents.END_CLIENT_TICK.register(SilentRotation::onEndTick);
     }
 
-    /** Считает углы на цель и шлёт их серверу, не трогая камеру. */
+    /** Плавно доворачивает серверный поворот на цель, не трогая камеру (если cameraFollow выключен). */
     public static void aimAt(LocalPlayer player, LivingEntity target) {
         Vec3 from = player.getEyePosition();
         Vec3 to = target.getBoundingBox().getCenter();
@@ -41,21 +45,29 @@ public final class SilentRotation {
         double dz = to.z - from.z;
         double flat = Math.sqrt(dx * dx + dz * dz);
 
-        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, flat));
-        pitch = Math.max(-90.0F, Math.min(90.0F, pitch));
+        float targetYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
+        float targetPitch = (float) -Math.toDegrees(Math.atan2(dy, flat));
+        targetPitch = Mth.clamp(targetPitch, -90.0F, 90.0F);
 
-        // режим "видимая камера": твоя камера тоже поворачивается на цель
-        if (cameraFollow) {
-            player.setYRot(yaw);
-            player.setXRot(pitch);
+        // начинаем от настоящего поворота камеры, если до этого не целились
+        if (!spoofing) {
+            curYaw = player.getYRot();
+            curPitch = player.getXRot();
         }
 
-        spoofYaw = yaw;
-        spoofPitch = pitch;
+        float dYaw = Mth.clamp(Mth.wrapDegrees(targetYaw - curYaw), -MAX_YAW_STEP, MAX_YAW_STEP);
+        float dPitch = Mth.clamp(targetPitch - curPitch, -MAX_PITCH_STEP, MAX_PITCH_STEP);
+        curYaw += dYaw;
+        curPitch = Mth.clamp(curPitch + dPitch, -90.0F, 90.0F);
+
+        if (cameraFollow) {
+            player.setYRot(curYaw);
+            player.setXRot(curPitch);
+        }
+
         spoofing = true;
         lastAimTick = player.tickCount;
-        send(player, yaw, pitch);
+        send(player, curYaw, curPitch);
     }
 
     private static void onEndTick(Minecraft mc) {
@@ -66,12 +78,24 @@ public final class SilentRotation {
         }
         int age = player.tickCount - lastAimTick;
         if (age < 0 || age >= HOLD_TICKS) {
-            // аура давно не целилась: возвращаем серверу настоящий поворот камеры
-            send(player, player.getYRot(), player.getXRot());
-            spoofing = false;
+            // аура давно не целилась: плавно возвращаем серверу настоящий поворот камеры
+            float realYaw = player.getYRot();
+            float realPitch = player.getXRot();
+            float dYaw = Mth.clamp(Mth.wrapDegrees(realYaw - curYaw), -MAX_YAW_STEP, MAX_YAW_STEP);
+            float dPitch = Mth.clamp(realPitch - curPitch, -MAX_PITCH_STEP, MAX_PITCH_STEP);
+            curYaw += dYaw;
+            curPitch = Mth.clamp(curPitch + dPitch, -90.0F, 90.0F);
+            send(player, curYaw, curPitch);
+
+            boolean done = Math.abs(Mth.wrapDegrees(realYaw - curYaw)) < 0.5F
+                    && Math.abs(realPitch - curPitch) < 0.5F;
+            if (done) {
+                send(player, realYaw, realPitch);
+                spoofing = false;
+            }
         } else if (age > 0) {
             // держим поворот, чтобы он дошёл до других игроков
-            send(player, spoofYaw, spoofPitch);
+            send(player, curYaw, curPitch);
         }
     }
 
