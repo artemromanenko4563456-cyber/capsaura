@@ -45,7 +45,7 @@ public final class BowAssist {
         }
 
         LocalPlayer player = mc.player;
-        if (!enabled || player == null || mc.level == null || mc.screen != null) {
+               if (!enabled || player == null || mc.level == null) {
             return;
         }
         if (!player.isUsingItem() || !player.getUseItem().is(Items.BOW)) {
