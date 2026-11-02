@@ -16,10 +16,10 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class SilentRotation {
     /** true: камера у тебя на экране тоже крутится на цель. false: крутится только у других. */
-    public static boolean cameraFollow = false;
+    public static boolean cameraFollow = true;
 
     /** true: плавный доворот (шагами). false: мгновенный поворот на цель. */
-    public static boolean smooth = false;
+    public static boolean smooth = true;
 
     /** Сколько тиков держать поворот после последнего наведения. */
     private static final int HOLD_TICKS = 5;
