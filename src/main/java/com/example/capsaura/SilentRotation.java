@@ -9,12 +9,18 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Тихая ротация: камера у тебя не двигается, а серверу (и другим игрокам)
- * уходит пакет с поворотом на цель прямо перед ударом.
- * Подходит для обеих аур: CapsAuraClient (по CPS) и KillAura (по заряду, 1.9+).
+ * уходит пакет с поворотом на цель.
+ * Поворот удерживается несколько тиков и пересылается каждый тик,
+ * чтобы сервер успел разослать его другим игрокам.
  */
 public final class SilentRotation {
+    /** Сколько тиков держать поворот после последнего наведения. */
+    private static final int HOLD_TICKS = 5;
+
     private static boolean spoofing;
     private static int lastAimTick;
+    private static float spoofYaw;
+    private static float spoofPitch;
 
     private SilentRotation() {}
 
@@ -23,7 +29,7 @@ public final class SilentRotation {
         ClientTickEvents.END_CLIENT_TICK.register(SilentRotation::onEndTick);
     }
 
-    /** Замена старого aimAt: считает углы на цель и шлёт их серверу, не трогая камеру. */
+    /** Считает углы на цель и шлёт их серверу, не трогая камеру. */
     public static void aimAt(LocalPlayer player, LivingEntity target) {
         Vec3 from = player.getEyePosition();
         Vec3 to = target.getBoundingBox().getCenter();
@@ -36,12 +42,13 @@ public final class SilentRotation {
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, flat));
         pitch = Math.max(-90.0F, Math.min(90.0F, pitch));
 
-        send(player, yaw, pitch);
+        spoofYaw = yaw;
+        spoofPitch = pitch;
         spoofing = true;
         lastAimTick = player.tickCount;
+        send(player, yaw, pitch);
     }
 
-    /** Если аура 2 тика не целилась, возвращаем серверу настоящий поворот камеры. */
     private static void onEndTick(Minecraft mc) {
         LocalPlayer player = mc.player;
         if (!spoofing || player == null) {
@@ -49,9 +56,13 @@ public final class SilentRotation {
             return;
         }
         int age = player.tickCount - lastAimTick;
-        if (age < 0 || age >= 2) {
+        if (age < 0 || age >= HOLD_TICKS) {
+            // аура давно не целилась: возвращаем серверу настоящий поворот камеры
             send(player, player.getYRot(), player.getXRot());
             spoofing = false;
+        } else if (age > 0) {
+            // держим поворот, чтобы он дошёл до других игроков
+            send(player, spoofYaw, spoofPitch);
         }
     }
 
