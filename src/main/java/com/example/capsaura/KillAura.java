@@ -123,7 +123,7 @@ public final class KillAura {
         return e instanceof Enemy ? CapsAuraClient.ATTACK_HOSTILE : CapsAuraClient.ATTACK_PASSIVE;
     }
 
-    private static void aimAt(LocalPlayer player, LivingEntity target) {
+    private static void SilentRotation.aimAt(player, target); {
         Vec3 from = player.getEyePosition();
         Vec3 to = target.getBoundingBox().getCenter();
         double dx = to.x - from.x;
